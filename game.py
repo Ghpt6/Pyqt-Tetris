@@ -1,73 +1,89 @@
-import typing
 from PyQt5 import QtGui
 from PyQt5.QtWidgets import QMainWindow, QApplication
 from PyQt5.QtGui import QPainter, QColor, QBrush
 from PyQt5.QtCore import Qt, QBasicTimer
+from copy import deepcopy
 
 
 class Piece:
     color = [
+        None,
         QColor(0, 0, 0, 0),  # transparent
         QColor(255, 0, 0),  # red
     ]
-    No_Shape = 0
-    T_Shape = 1
+    Error_Shape = 0
+    No_Shape = 1
+    T_Shape = 2
 
     def __init__(self, x, y, board):
         self.x = x
         self.y = y
         self.board = board
- 
+
     def new_piece(self):
         self.board.cur = TPiece(2, -2, self.board)
 
-    def change_piece(self, newX, newY):
-        pass
+    def collision(self, newX, newY, newCoord) -> bool:
+        if newCoord is None:
+            newCoord = self.coord
+        for pos in newCoord:
+            x = newX + pos[0]
+            y = newY + pos[1]
+            if self.board.get_Shape_At(x, y) != Piece.No_Shape:
+                return True
+        return False
 
-    # direction: true->clockwise, false->counterclockwise
-    def rotate(self, direction: bool):
+    # return success(true) or fail(false)
+    def change_piece(self, newX, newY, newCoord=None) -> bool:
         for pos in self.coord:
             x = self.x + pos[0]
             y = self.y + pos[1]
             self.board.set_Shape_At(x, y, Piece.No_Shape)
 
-        if direction:
+        if self.collision(newX, newY, newCoord):
             for pos in self.coord:
+                x = self.x + pos[0]
+                y = self.y + pos[1]
+                self.board.set_Shape_At(x, y, self.shape)
+            return False
+
+        self.x = newX
+        self.y = newY
+
+        if newCoord is None:
+            newCoord = self.coord
+        else:
+            self.coord = newCoord
+        for pos in newCoord:
+            x = self.x + pos[0]
+            y = self.y + pos[1]
+            self.board.set_Shape_At(x, y, self.shape)
+
+        self.board.flush_board()
+        return True
+
+    # direction: true->clockwise, false->counterclockwise
+    def rotate(self, direction: bool):
+        coord = deepcopy(self.coord)
+
+        if direction:
+            for pos in coord:
                 x = pos[0]
                 pos[0] = pos[1]
                 pos[1] = -x
         else:
-            for pos in self.coord:
+            for pos in coord:
                 y = pos[1]
                 pos[1] = pos[0]
                 pos[0] = -y
 
-        for pos in self.coord:
-            x = self.x + pos[0]
-            y = self.y + pos[1]
-            self.board.set_Shape_At(x, y, self.shape)
-            
-        self.board.flush_board()
+        self.change_piece(self.x, self.y, coord)
 
     def move(self, relative):
-        for pos in self.coord:
-            x = self.x + pos[0]
-            y = self.y + pos[1]
-            self.board.set_Shape_At(x, y, Piece.No_Shape)
-
-        self.x = self.x + relative[0]
-        self.y = self.y + relative[1]
-
-        for pos in self.coord:
-            x = self.x + pos[0]
-            y = self.y + pos[1]
-            self.board.set_Shape_At(x, y, self.shape)
-
-        self.board.flush_board()
+        return self.change_piece(self.x + relative[0], self.y + relative[1])
 
     def drop_one_line(self):
-        self.move([0, 1])
-        if self.hit_the_bottom():
+        if not self.move([0, 1]):
             self.new_piece()
 
     def move_right_one_line(self):
@@ -134,6 +150,13 @@ class Board:
         if self.out_of_bounds(x, y):
             return
         self._board[self.xy2i(x, y)] = shape
+
+    def get_Shape_At(self, x, y):
+        if (x < 0) or (x >= self.width) or (y >= self.height):
+            return Piece.Error_Shape  # out of border
+        elif y < 0:  # it's ok that out of top
+            return Piece.No_Shape
+        return self._board[self.xy2i(x, y)]
 
     def out_of_bounds(self, x, y) -> bool:
         return (x < 0) or (y < 0) or (x >= self.width) or (y >= self.height)
