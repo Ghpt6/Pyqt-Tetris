@@ -1,2 +1,2 @@
 # Pyqt-Tetris
-A very simple pyqt implementation of tetris game, only one source file.
+A very simple pyqt implementation( unfinished ) of tetris game, only one source file.
